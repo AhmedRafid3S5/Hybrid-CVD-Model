@@ -1,0 +1,35 @@
+Target column: Cardiovascular Disease
+Rows: 57304
+Features: 6
+Numeric features (6): ['Age', 'Alcohol Intake', 'BMI', 'Gender', 'Physical Activity', 'Smoking Status']
+Categorical features (0): []
+
+=== Test metrics @ threshold = 0.50 ===
+  accuracy: 0.6027
+ precision: 0.3852
+    recall: 0.6949
+        f1: 0.4956
+   roc_auc: 0.6531
+
+=== Tuned threshold (max F1) ===
+threshold: 0.4678
+precision: 0.3752
+recall   : 0.7928
+f1       : 0.5094
+roc_auc  : 0.6531
+
+5-fold CV ROC-AUC: 0.6498
+
+=== Classification report (t=0.50) ===
+              precision    recall  f1-score   support
+
+           0       0.83      0.57      0.67      8242
+           1       0.39      0.69      0.50      3219
+
+    accuracy                           0.60     11461
+   macro avg       0.61      0.63      0.58     11461
+weighted avg       0.70      0.60      0.62     11461
+
+=== Confusion matrix (t=0.50) ===
+[[4671 3571]
+ [ 982 2237]]
