@@ -10,6 +10,10 @@ Categorical features (0): []
     recall: 0.6949
         f1: 0.4956
    roc_auc: 0.6531
+    pr_auc: 0.3510   (trapezoidal area under PR curve)
+  avg_prec: 0.3512   (Average Precision)
+PR curve image: Hybrid-CVD-Model/Model A/pr_curve_cvd.png
+PR curve points CSV: Hybrid-CVD-Model/Model A/pr_curve_points_cvd.csv
 
 === Tuned threshold (max F1) ===
 threshold: 0.4678

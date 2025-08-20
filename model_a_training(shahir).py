@@ -12,12 +12,15 @@ Train Logistic Regression for Cardiovascular Disease (CVD) prediction.
 - Artifacts saved:
     * cardio_logreg_pipeline_cvd.joblib
     * training_report_cvd.txt
+    * pr_curve_cvd.png
+    * pr_curve_points_cvd.csv
 """
 
 import os
 import numpy as np
 import pandas as pd
 import joblib
+import matplotlib.pyplot as plt
 
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
@@ -28,7 +31,7 @@ from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.metrics import (
     accuracy_score, precision_score, recall_score, f1_score,
     roc_auc_score, classification_report, confusion_matrix,
-    precision_recall_curve
+    precision_recall_curve, average_precision_score, auc
 )
 
 # ---------------------- CONFIG ----------------------
@@ -39,7 +42,16 @@ TEST_SIZE = 0.20
 
 MODEL_PATH = "Hybrid-CVD-Model/Model A/cardio_logreg_pipeline_cvd.joblib"
 REPORT_PATH = "Hybrid-CVD-Model/Model A/training_report_cvd.txt"
+
+# PR artifacts (same folder as report/model)
+PR_CURVE_PATH = "Hybrid-CVD-Model/Model A/pr_curve_cvd.png"
+PR_POINTS_PATH = "Hybrid-CVD-Model/Model A/pr_curve_points_cvd.csv"
 # ---------------------------------------------------
+
+
+def ensure_dir_for(path: str):
+    """Create parent directory for a file path if missing."""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
 
 
 def build_pipeline(numeric_cols, categorical_cols) -> Pipeline:
@@ -77,7 +89,6 @@ def build_pipeline(numeric_cols, categorical_cols) -> Pipeline:
 def pick_best_threshold(y_true, y_proba):
     """Return threshold that maximizes F1 on provided data."""
     precision, recall, thresholds = precision_recall_curve(y_true, y_proba)
-    # thresholds length = len(precision) - 1
     f1s = (2 * precision[:-1] * recall[:-1]) / (precision[:-1] + recall[:-1] + 1e-12)
     best_idx = np.argmax(f1s)
     return float(thresholds[best_idx]), float(f1s[best_idx]), float(precision[best_idx]), float(recall[best_idx])
@@ -103,6 +114,10 @@ def evaluate(y_true, y_pred, y_proba=None):
 
 
 def main():
+    # 0) Ensure output dirs exist
+    for p in (MODEL_PATH, REPORT_PATH, PR_CURVE_PATH, PR_POINTS_PATH):
+        ensure_dir_for(p)
+
     # 1) Load
     if not os.path.exists(DATA_PATH):
         raise FileNotFoundError(f"Could not find dataset at: {DATA_PATH}")
@@ -163,10 +178,32 @@ def main():
         except Exception:
             pass
 
-    # 10) Save model
+    # 10) Precision–Recall curve (plot + save)
+    ap, pr_auc = None, None
+    if y_proba_test is not None and len(np.unique(y_test)) == 2:
+        precision, recall, thresholds = precision_recall_curve(y_test, y_proba_test)
+        pr_auc = auc(recall, precision)                          # trapezoidal PR-AUC (matches your PR plot)
+        ap = average_precision_score(y_test, y_proba_test)       # Average Precision (step-wise)
+
+        # Save raw PR points
+        pd.DataFrame({"recall": recall, "precision": precision}).to_csv(PR_POINTS_PATH, index=False)
+
+        # Plot & save PR curve
+        plt.figure(figsize=(6, 6))
+        plt.plot(recall, precision, label=f"PR AUC={pr_auc:.4f} | AP={ap:.4f}")
+        plt.xlabel("Recall")
+        plt.ylabel("Precision")
+        plt.title("Precision–Recall Curve (CVD Prediction)")
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
+        plt.savefig(PR_CURVE_PATH, dpi=160)
+        plt.close()
+
+    # 11) Save model
     joblib.dump(pipe, MODEL_PATH)
 
-    # 11) Report
+    # 12) Report
     lines = []
     lines.append(f"Target column: {TARGET_COL}")
     lines.append(f"Rows: {len(df)}")
@@ -179,6 +216,12 @@ def main():
         lines.append(f"{k:>10}: {v:.4f}")
     if roc_auc_05 is not None:
         lines.append(f"{'roc_auc':>10}: {roc_auc_05:.4f}")
+    if pr_auc is not None:
+        lines.append(f"{'pr_auc':>10}: {pr_auc:.4f}   (trapezoidal area under PR curve)")
+    if ap is not None:
+        lines.append(f"{'avg_prec':>10}: {ap:.4f}   (Average Precision)")
+        lines.append(f"PR curve image: {PR_CURVE_PATH}")
+        lines.append(f"PR curve points CSV: {PR_POINTS_PATH}")
 
     if tuned is not None:
         lines.append("\n=== Tuned threshold (max F1) ===")
@@ -186,7 +229,7 @@ def main():
         lines.append(f"precision: {tuned['precision']:.4f}")
         lines.append(f"recall   : {tuned['recall']:.4f}")
         lines.append(f"f1       : {tuned['f1']:.4f}")
-        if tuned["roc_auc"] is not None:
+        if tuned['roc_auc'] is not None:
             lines.append(f"roc_auc  : {tuned['roc_auc']:.4f}")
 
     if cv_auc is not None:
@@ -201,10 +244,22 @@ def main():
     with open(REPORT_PATH, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
 
-    # 12) Console summary
+    # 13) Console summary
     print("\n".join(lines))
+    if roc_auc_05 is not None:
+        print(f"\nROC-AUC (t=0.50): {roc_auc_05:.4f}")
+    if pr_auc is not None:
+        print(f"PR-AUC: {pr_auc:.4f}")
+    if ap is not None:
+        print(f"Average Precision: {ap:.4f}")
+    if cv_auc is not None:
+        print(f"5-fold CV ROC-AUC: {cv_auc:.4f}")
+
     print(f"\nSaved pipeline to: {MODEL_PATH}")
     print(f"Saved report to:   {REPORT_PATH}")
+    if ap is not None:
+        print(f"Saved PR curve to: {PR_CURVE_PATH}")
+        print(f"Saved PR points to: {PR_POINTS_PATH}")
 
 
 if __name__ == "__main__":
