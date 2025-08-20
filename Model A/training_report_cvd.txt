@@ -5,35 +5,35 @@ Numeric features (6): ['Age', 'Alcohol Intake', 'BMI', 'Gender', 'Physical Activ
 Categorical features (0): []
 
 === Test metrics @ threshold = 0.50 ===
-  accuracy: 0.6027
- precision: 0.3852
-    recall: 0.6949
-        f1: 0.4956
-   roc_auc: 0.6531
-    pr_auc: 0.3510   (trapezoidal area under PR curve)
-  avg_prec: 0.3512   (Average Precision)
+  accuracy: 0.7581
+ precision: 0.5994
+    recall: 0.4188
+        f1: 0.4931
+   roc_auc: 0.8043
+    pr_auc: 0.5748   (trapezoidal area under PR curve)
+  avg_prec: 0.5751   (Average Precision)
 PR curve image: Hybrid-CVD-Model/Model A/pr_curve_cvd.png
 PR curve points CSV: Hybrid-CVD-Model/Model A/pr_curve_points_cvd.csv
 
 === Tuned threshold (max F1) ===
-threshold: 0.4678
-precision: 0.3752
-recall   : 0.7928
-f1       : 0.5094
-roc_auc  : 0.6531
+threshold: 0.2891
+precision: 0.5127
+recall   : 0.7596
+f1       : 0.6122
+roc_auc  : 0.8043
 
-5-fold CV ROC-AUC: 0.6498
+5-fold CV ROC-AUC: 0.8032
 
 === Classification report (t=0.50) ===
               precision    recall  f1-score   support
 
-           0       0.83      0.57      0.67      8242
-           1       0.39      0.69      0.50      3219
+           0       0.80      0.89      0.84      8242
+           1       0.60      0.42      0.49      3219
 
-    accuracy                           0.60     11461
-   macro avg       0.61      0.63      0.58     11461
-weighted avg       0.70      0.60      0.62     11461
+    accuracy                           0.76     11461
+   macro avg       0.70      0.65      0.67     11461
+weighted avg       0.74      0.76      0.74     11461
 
 === Confusion matrix (t=0.50) ===
-[[4671 3571]
- [ 982 2237]]
+[[7341  901]
+ [1871 1348]]
