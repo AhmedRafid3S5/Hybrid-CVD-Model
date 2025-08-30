@@ -1,0 +1,12 @@
+Model A (LogisticRegression):
+✅ Well-calibrated (trustworthy probabilities)
+⚠️  Conservative (lower risk predictions)
+⚠️  Less discriminative (similar predictions for many patients)
+
+Model B (LightGBM):
+⚠️  Less calibrated (probabilities need adjustment)
+✅ More discriminative (spreads predictions well)
+✅ More sensitive (identifies more potential cases)
+
+
+
