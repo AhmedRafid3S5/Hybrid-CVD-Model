@@ -12,9 +12,9 @@ st.caption("Two LightGBM base models → Meta neural net → Final probability")
 # -----------------------------
 # File locations (put these next to app.py)
 # -----------------------------
-MODEL_A_PATH = "saved_models_tausif/lightgbm_model_A.txt"   # lifestyle features
-MODEL_B_PATH = "saved_models_tausif/lightgbm_model_B.txt"   # clinical features
-META_MODEL_PATH = "saved_models_tausif/meta_model.h5"       # Keras meta-model
+MODEL_A_PATH = "Saved Models A/lightgbm_model.txt"   # lifestyle features
+MODEL_B_PATH = "Models B/lightgbm_model.txt"   # clinical features
+META_MODEL_PATH = "simple_4_model.h5"       # Keras meta-model
 
 # -----------------------------
 # Expected master feature schema (names with underscores)
