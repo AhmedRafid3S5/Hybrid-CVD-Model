@@ -4,97 +4,147 @@ import lightgbm as lgb
 import joblib
 import os
 from sklearn.model_selection import train_test_split
-# Added average_precision_score for PR AUC
 from sklearn.metrics import accuracy_score, roc_auc_score, f1_score, precision_score, recall_score, average_precision_score
+
+def load_and_train_base_model(csv_path, target_col, model_name, save_path, exclude_cols=None):
+    """
+    Loads a dataset, trains a LightGBM model, and saves it.
+    exclude_cols: List of extra columns to drop (to ensure compatibility with Meta Dataset).
+    """
+    print(f"\n--- Processing {model_name} ---")
+    print(f"Loading data from: {csv_path}")
+    
+    if not os.path.exists(csv_path):
+        raise FileNotFoundError(f"Could not find file: {csv_path}")
+    
+    df = pd.read_csv(csv_path)
+    
+    if target_col not in df.columns:
+        raise ValueError(f"Target column '{target_col}' not found in {csv_path}")
+
+    # Prepare drop list
+    drop_list = [target_col, 'id']
+    if exclude_cols:
+        drop_list.extend(exclude_cols)
+        print(f"[{model_name}] Excluding columns to ensure compatibility: {exclude_cols}")
+
+    # Create Feature Matrix X and Target Y
+    X = df.drop(columns=drop_list, errors='ignore')
+    Y = df[target_col]
+    
+    print(f"Training {model_name} on {len(df)} rows using {len(X.columns)} features...")
+    print(f"Features used: {X.columns.tolist()}")
+    
+    model = lgb.LGBMClassifier(n_estimators=100, random_state=42)
+    model.fit(X, Y)
+    
+    joblib.dump(model, save_path)
+    print(f"Saved {model_name} to {save_path}")
+    
+    return model, X.columns.tolist()
 
 def main():
     # ==========================================
-    # 1. SETUP & DATA LOADING
+    # 1. CONFIGURATION
     # ==========================================
-    dataset_path = r"Meta Model Dataset/Training_For_Meta_Model.csv"
+    # Using the filenames you uploaded
+    path_lifestyle_data = r"Model A Dataset/lifestyle_dataset.csv"
+    path_health_data    = r"Model B Dataset/healthFactors_dataset_with_indicator.csv"
+    path_meta_data      = r"Meta Model Dataset/Training_For_Meta_Model.csv"
+    
     save_dir = r"saved_models_tausif"
     metrics_file = r"meta_model_metrics.txt"
-    
+    target_col = 'Cardiovascular Disease'
+
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
-    print(f"Loading dataset from: {dataset_path}")
+    # ==========================================
+    # 2. TRAIN BASE MODELS
+    # ==========================================
     try:
-        dataset = pd.read_csv(dataset_path)
-    except FileNotFoundError:
-        print(f"Error: Could not find dataset at {dataset_path}")
+        # --- Train Model A (Lifestyle) ---
+        # No extra exclusions needed for Lifestyle
+        model_A, features_A = load_and_train_base_model(
+            path_lifestyle_data, target_col, "Model A (Lifestyle)", 
+            os.path.join(save_dir, "lightgbm_model_A_new.pkl")
+        )
+
+        # --- Train Model B (Health) ---
+        # IMPORTANT: 'Is Minority' is in Health Dataset but NOT in Meta Dataset.
+        # We MUST exclude it, otherwise Model B will crash during the Meta step.
+        model_B, features_B = load_and_train_base_model(
+            path_health_data, target_col, "Model B (Health)", 
+            os.path.join(save_dir, "lightgbm_model_B_new.pkl"),
+            exclude_cols=['Is Minority'] 
+        )
+        
+    except Exception as e:
+        print(f"\n[CRITICAL ERROR] Failed during base model training: {e}")
         return
 
-    # Define Column Groups
-    target_col = 'Cardiovascular Disease'
-    drop_for_A = ['Cholesterol_Level', 'Diastolic_Blood_Pressure', 'Systolic_Blood_Pressure', 'Glucose_Level', 'id', target_col]
-    drop_for_B = ['Smoking_Status', 'Physical_Activity', 'Alcohol_Intake', 'id', target_col]
+    # ==========================================
+    # 3. PREPARE META-MODEL DATASET
+    # ==========================================
+    print(f"\n--- Preparing Meta Model Dataset ---")
+    print(f"Loading meta-training data from: {path_meta_data}")
+    
+    if not os.path.exists(path_meta_data):
+        print(f"Error: Meta dataset not found at {path_meta_data}")
+        return
 
-    X = dataset.drop([target_col], axis=1)
-    Y = dataset[target_col]
+    meta_df = pd.read_csv(path_meta_data)
+    
+    # NOTE: We REMOVED the renaming logic. 
+    # Your files consistently use spaces (e.g. "Alcohol Intake"), so we keep them as is.
 
-    column_mappings = {
-        'Cholesterol Level': 'Cholesterol_Level',
-        'Diastolic Blood Pressure': 'Diastolic_Blood_Pressure',
-        'Glucose Level': 'Glucose_Level',
-        'Systolic Blood Pressure': 'Systolic_Blood_Pressure',
-        'Alcohol Intake': 'Alcohol_Intake',
-        'Physical Activity': 'Physical_Activity',
-        'Smoking Status': 'Smoking_Status'
-    }
-    X = X.rename(columns=column_mappings)
+    # Split Meta Dataset
+    X_meta_raw = meta_df.drop(columns=[target_col, 'id'], errors='ignore')
+    Y_meta_raw = meta_df[target_col]
 
-    # Split Data
-    X_train, X_test, Y_train, Y_test = train_test_split(
-        X, Y, test_size=0.2, random_state=42, stratify=Y
+    X_train_split, X_test_split, Y_train, Y_test = train_test_split(
+        X_meta_raw, Y_meta_raw, test_size=0.2, random_state=42, stratify=Y_meta_raw
     )
 
     # ==========================================
-    # 2. RETRAIN BASE MODELS
+    # 4. GENERATE META-FEATURES
     # ==========================================
-    print("\n--- Retraining Base Models ---")
+    print("Generating predictions from Base Models...")
 
-    # --- Train Model A (Lifestyle) ---
-    print("Training Model A (Lifestyle)...")
-    X_train_A = X_train.drop(columns=[c for c in drop_for_A if c in X_train.columns], errors='ignore')
-    X_test_A  = X_test.drop(columns=[c for c in drop_for_A if c in X_test.columns], errors='ignore')
-    
-    model_A = lgb.LGBMClassifier(n_estimators=100, random_state=42)
-    model_A.fit(X_train_A, Y_train)
-    joblib.dump(model_A, os.path.join(save_dir, "lightgbm_model_A_new.pkl"))
+    def get_preds_safe(model, feature_list, data):
+        # Strictly select columns. If mismatch occurs, print helpful error.
+        missing = [c for c in feature_list if c not in data.columns]
+        if missing:
+            raise ValueError(f"Meta Dataset is missing columns required by this model: {missing}")
+        
+        subset = data[feature_list]
+        return model.predict_proba(subset)[:, 1]
 
-    # --- Train Model B (Health) ---
-    print("Training Model B (Health)...")
-    X_train_B = X_train.drop(columns=[c for c in drop_for_B if c in X_train.columns], errors='ignore')
-    X_test_B  = X_test.drop(columns=[c for c in drop_for_B if c in X_test.columns], errors='ignore')
-    
-    model_B = lgb.LGBMClassifier(n_estimators=100, random_state=42)
-    model_B.fit(X_train_B, Y_train)
-    joblib.dump(model_B, os.path.join(save_dir, "lightgbm_model_B_new.pkl"))
+    try:
+        # Get predictions for Train Split
+        probs_A_train = get_preds_safe(model_A, features_A, X_train_split)
+        probs_B_train = get_preds_safe(model_B, features_B, X_train_split)
+        X_meta_train = np.column_stack((probs_A_train, probs_B_train))
 
-    # ==========================================
-    # 3. GENERATE META-FEATURES
-    # ==========================================
-    print("\n--- Generating Meta-Features ---")
-
-    probs_A_train = model_A.predict_proba(X_train_A)[:, 1]
-    probs_B_train = model_B.predict_proba(X_train_B)[:, 1]
-
-    probs_A_test = model_A.predict_proba(X_test_A)[:, 1]
-    probs_B_test = model_B.predict_proba(X_test_B)[:, 1]
-
-    X_meta_train = np.column_stack((probs_A_train, probs_B_train))
-    X_meta_test  = np.column_stack((probs_A_test, probs_B_test))
+        # Get predictions for Test Split
+        probs_A_test = get_preds_safe(model_A, features_A, X_test_split)
+        probs_B_test = get_preds_safe(model_B, features_B, X_test_split)
+        X_meta_test = np.column_stack((probs_A_test, probs_B_test))
+        
+    except ValueError as e:
+        print(f"\n[ERROR] Column Mismatch detected: {e}")
+        print("Please check that 'Training_For_Meta_Model.csv' contains all necessary columns.")
+        return
 
     # ==========================================
-    # 4. TRAIN META MODEL (LightGBM)
+    # 5. TRAIN META MODEL
     # ==========================================
     print("Training Meta Model (LightGBM)...")
 
     meta_model = lgb.LGBMClassifier(
         n_estimators=100,
         learning_rate=0.05,
-        max_depth=3,
+        max_depth=3,        # Shallow tree since we only have 2 inputs
         num_leaves=7,
         random_state=42,
         verbosity=-1
@@ -104,25 +154,25 @@ def main():
     joblib.dump(meta_model, os.path.join(save_dir, "meta_model_lgbm.pkl"))
 
     # ==========================================
-    # 5. FINAL EVALUATION & LOGGING
+    # 6. EVALUATION
     # ==========================================
-    print("\n--- Final Evaluation on Test Set ---")
+    print("\n--- Final Evaluation ---")
     
     final_preds = meta_model.predict(X_meta_test)
     final_probs = meta_model.predict_proba(X_meta_test)[:, 1]
 
-    # Calculate All Metrics
+    # Metrics
     auc_A = roc_auc_score(Y_test, probs_A_test)
     auc_B = roc_auc_score(Y_test, probs_B_test)
     
     acc_meta = accuracy_score(Y_test, final_preds)
     roc_auc_meta = roc_auc_score(Y_test, final_probs)
-    pr_auc_meta = average_precision_score(Y_test, final_probs) # PR AUC
+    pr_auc_meta = average_precision_score(Y_test, final_probs)
     f1_meta = f1_score(Y_test, final_preds)
     prec_meta = precision_score(Y_test, final_preds)
     rec_meta = recall_score(Y_test, final_preds)
 
-    # Print to Console
+    # Console Output
     print(f"Base Model A (Lifestyle) ROC AUC: {auc_A:.4f}")
     print(f"Base Model B (Health)    ROC AUC: {auc_B:.4f}")
     print("-" * 40)
@@ -133,10 +183,13 @@ def main():
     print(f"Meta Model Precision: {prec_meta:.4f}")
     print(f"Meta Model Recall:    {rec_meta:.4f}")
 
-    # Write to Text File
+    # File Output
     try:
         with open(metrics_file, "w") as f:
             f.write("=== Meta Model Evaluation Metrics ===\n")
+            f.write(f"Training Source A: {path_lifestyle_data}\n")
+            f.write(f"Training Source B: {path_health_data}\n")
+            f.write("-" * 40 + "\n")
             f.write(f"Base Model A (Lifestyle) ROC AUC: {auc_A:.4f}\n")
             f.write(f"Base Model B (Health)    ROC AUC: {auc_B:.4f}\n")
             f.write("-" * 40 + "\n")
@@ -146,9 +199,9 @@ def main():
             f.write(f"Meta Model F1-Score:  {f1_meta:.4f}\n")
             f.write(f"Meta Model Precision: {prec_meta:.4f}\n")
             f.write(f"Meta Model Recall:    {rec_meta:.4f}\n")
-        print(f"\n[Success] All metrics (Accuracy, ROC AUC, PR AUC, F1, Precision, Recall) saved to '{metrics_file}'")
+        print(f"\n[Success] Metrics saved to '{metrics_file}'")
     except Exception as e:
-        print(f"\n[Error] Could not save metrics to file: {e}")
+        print(f"\n[Error] Could not save metrics file: {e}")
 
 if __name__ == "__main__":
     main()
