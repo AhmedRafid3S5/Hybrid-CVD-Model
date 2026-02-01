@@ -1,0 +1,10 @@
+=== Meta Model Evaluation Metrics ===
+Base Model A (Lifestyle) ROC AUC: 0.6630
+Base Model B (Health)    ROC AUC: 0.7936
+----------------------------------------
+Meta Model Accuracy:  0.7312
+Meta Model ROC AUC:   0.7888
+Meta Model PR AUC:    0.7683
+Meta Model F1-Score:  0.7220
+Meta Model Precision: 0.7411
+Meta Model Recall:    0.7038
