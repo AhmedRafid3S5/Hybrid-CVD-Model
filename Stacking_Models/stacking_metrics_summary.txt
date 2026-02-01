@@ -1,0 +1,28 @@
+Stacking Classifier Performance Summary
+==================================================
+
+Test Accuracy: 0.7317609141517726
+Test Precision: 0.7483221476510067
+Test Recall: 0.6917282127031019
+Test F1 Score: 0.7189131102241326
+Test ROC AUC: 0.7964728487004181
+Test PR AUC: 0.7795990704104045
+Test Specificity: 0.7711421098517872
+Test NPV: 0.7177441168515012
+Training Samples: 56137
+Test Samples: 13652
+Number of Features: 10
+Number of Base Models: 4
+CV Folds: 5
+
+==================================================
+
+Classification Report:
+              precision    recall  f1-score   support
+
+      No CVD       0.72      0.77      0.74      6882
+         CVD       0.75      0.69      0.72      6770
+
+    accuracy                           0.73     13652
+   macro avg       0.73      0.73      0.73     13652
+weighted avg       0.73      0.73      0.73     13652
